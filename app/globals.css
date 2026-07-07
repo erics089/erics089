@@ -1,0 +1,33 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --ui-border: rgba(60, 50, 30, 0.12);
+  --ui-ink: #2c2822;
+  --ui-muted: #7a7266;
+  --ui-surface: #ffffff;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: var(--brand-primary);
+  color: var(--ui-ink);
+}
+
+::selection {
+  background-color: var(--brand-accent);
+  color: var(--ui-ink);
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background-color: var(--brand-secondary);
+  border-radius: 999px;
+}

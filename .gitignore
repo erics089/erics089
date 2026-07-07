@@ -1,0 +1,46 @@
+# dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# testing
+coverage/
+
+# next.js
+.next/
+out/
+build/
+dist/
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# local env (secrets) — .env itself is committed with only the non-secret
+# DATABASE_URL default so `prisma` CLI + first run work out of the box
+.env.local
+.env*.local
+
+# database
+prisma/dev.db
+prisma/dev.db-journal
+*.db
+*.db-journal
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# generated assets
+/public/generated/
+
+# local scratch
+.tmp/

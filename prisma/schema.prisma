@@ -1,0 +1,163 @@
+// MIRRA Wellness Marketing Command Center — Datenmodell
+// SQLite eignet sich nicht für native Enums in Prisma, daher werden
+// Status-/Kategoriewerte als String geführt und in lib/constants.ts typisiert.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+/// Editierbare Markenkonfiguration (Singleton-Zeile, id = "brand")
+model BrandConfig {
+  id                String   @id @default("brand")
+  colorPrimary      String   @default("#F5EFE6")
+  colorSecondary    String   @default("#A8B5A0")
+  colorAccent       String   @default("#C9A961")
+  fontHeading       String   @default("Cormorant Garamond")
+  fontBody          String   @default("Inter")
+  logoPath          String?
+  monthlyAdBudget   Float    @default(500)
+  imageVideoTools   String   @default("Higgsfield MCP, Midjourney, Runway")
+  languages         String   @default("DE+EN") // "DE" | "DE+EN"
+  setmoreUrl        String   @default("https://mirrawellness.setmore.com")
+  instagramHandle   String   @default("@mirra.wellness")
+  facebookHandle    String   @default("facebook.com/mirrawellness")
+  updatedAt         DateTime @updatedAt
+}
+
+/// Konfigurierbare MCP-Server-Verbindungen (Google Drive, Higgsfield, ...)
+model McpServer {
+  id          String   @id @default(cuid())
+  name        String
+  url         String
+  kind        String   @default("generic") // "google-drive" | "image-gen" | "generic"
+  transport   String   @default("http")    // "http" | "sse" | "stdio"
+  apiKeyEnv   String?  // Name der ENV-Variable mit dem Secret, falls benötigt
+  status      String   @default("unbekannt") // "verbunden" | "fehler" | "unbekannt"
+  lastError   String?
+  lastTestedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Asset {
+  id          String   @id @default(cuid())
+  source      String   // "drive" | "generated" | "upload"
+  driveFileId String?
+  filename    String
+  mimeType    String   @default("image/jpeg")
+  previewUrl  String?
+  tags        String   @default("") // Komma-getrennt
+  notes       String?
+  createdAt   DateTime @default(now())
+  usages      AssetUsage[]
+}
+
+model AssetUsage {
+  id        String   @id @default(cuid())
+  assetId   String
+  asset     Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  postId    String?
+  post      Post?    @relation(fields: [postId], references: [id], onDelete: SetNull)
+  context   String?  // z.B. "Post: Neck Reset Hook"
+  usedAt    DateTime @default(now())
+}
+
+model Campaign {
+  id             String   @id @default(cuid())
+  name           String
+  goal           String   // Buchungen | Gutscheinverkauf | Markenbekanntheit | Neueroeffnung | Reaktivierung
+  treatments     String   // Komma-getrennte Behandlungen
+  timeframeStart DateTime?
+  timeframeEnd   DateTime?
+  occasion       String?
+  budget         Float?
+  persona        String   // aus [5]
+  channels       String   // Komma-getrennt: IG,FB,MetaAds,GoogleAds,Email,WhatsApp
+  offer          String?
+  assetStrategy  String   @default("drive") // "drive" | "generate"
+  status         String   @default("Entwurf") // Entwurf|In Review|Freigegeben|Aktiv|Beendet
+  planJson       String?  // generierter Kampagnenplan als JSON-String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  posts          Post[]
+  adSpecs        AdSpec[]
+}
+
+model Post {
+  id            String   @id @default(cuid())
+  campaignId    String?
+  campaign      Campaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  type          String   // feed | carousel | reel | story
+  title         String
+  treatment     String?
+  persona       String?
+  language      String   @default("DE")
+  status        String   @default("Entwurf") // Entwurf|Review|Freigegeben|Veroeffentlicht
+  contentJson   String   // slides, captions, hashtags, bestTime, reasoning
+  scheduledAt   DateTime?
+  publishedAt   DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  assetUsages   AssetUsage[]
+  ideaId        String?
+  idea          ActionDayIdea? @relation(fields: [ideaId], references: [id])
+}
+
+model CalendarEvent {
+  id          String   @id @default(cuid())
+  title       String
+  date        DateTime
+  category    String   // Feiertag | Saison | Gesundheitstag | Aktion | Lokal
+  recurring   Boolean  @default(true)
+  description String?
+  isCustom    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  ideas       ActionDayIdea[]
+}
+
+model ActionDayIdea {
+  id               String   @id @default(cuid())
+  calendarEventId  String
+  calendarEvent    CalendarEvent @relation(fields: [calendarEventId], references: [id], onDelete: Cascade)
+  format           String   // Post | Story | Reel | Aktion | Kooperation
+  concept          String
+  conversionScore  Int      @default(3) // 1-5
+  createdAt        DateTime @default(now())
+  posts            Post[]
+}
+
+model AdSpec {
+  id           String   @id @default(cuid())
+  campaignId   String?
+  campaign     Campaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  platform     String   // META | GOOGLE
+  name         String
+  status       String   @default("Entwurf") // Entwurf|Review|Freigegeben
+  budget       Float?
+  specJson     String   // vollständige Struktur (AdSets, Keywords, RSA, Targeting...)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model EmailTemplate {
+  id        String   @id @default(cuid())
+  type      String   // willkommen | gutschein | reaktivierung | newsletter
+  subject   String
+  htmlBody  String
+  textBody  String
+  language  String   @default("DE")
+  createdAt DateTime @default(now())
+}
+
+model WhatsappTemplate {
+  id        String   @id @default(cuid())
+  title     String
+  text      String
+  language  String   @default("DE")
+  createdAt DateTime @default(now())
+}
