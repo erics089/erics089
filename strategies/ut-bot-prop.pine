@@ -1,0 +1,53 @@
+//@version=5
+// UT Bot Strategy + Prop-Risk-Overlay (Leverage "Turbo Trade")
+// Kern: UT Bot Alerts (Yo_adriiiiaan / QuantNomad, Original-Idee HPotter)
+// Original-Indikator: https://www.tradingview.com/script/n8ss8BID-UT-Bot-Alerts/
+// Overlay: fixer SL/TP + Daily-Loss-Killswitch (Puffer unter der 3%-Grenze)
+strategy("UT Bot Strategy + Prop Overlay", overlay=true, initial_capital=10000,
+     default_qty_type=strategy.percent_of_equity, default_qty_value=100,
+     commission_type=strategy.commission.percent, commission_value=0.002, slippage=2)
+
+// --- UT Bot Kern ---
+keyValue  = input.float(1.0, "Key Value (Sensitivity)")
+atrPeriod = input.int(10, "ATR Period")
+useHA     = input.bool(false, "Signale aus Heikin-Ashi")
+
+xATR  = ta.atr(atrPeriod)
+nLoss = keyValue * xATR
+src   = useHA ? request.security(ticker.heikinashi(syminfo.tickerid), timeframe.period, close, lookahead=barmerge.lookahead_off) : close
+
+var float trail = 0.0
+trail := src > nz(trail[1]) and src[1] > nz(trail[1]) ? math.max(nz(trail[1]), src - nLoss) :
+         src < nz(trail[1]) and src[1] < nz(trail[1]) ? math.min(nz(trail[1]), src + nLoss) :
+         src > nz(trail[1]) ? src - nLoss : src + nLoss
+
+ema   = ta.ema(src, 1)
+above = ta.crossover(ema, trail)
+below = ta.crossover(trail, ema)
+buy   = src > trail and above
+sell  = src < trail and below
+
+plot(trail, "ATR Trailing Stop", color=src > trail ? color.green : color.red)
+
+// --- Prop-Risk-Overlay ---
+slPerc           = input.float(0.6, "Stop-Loss %")            // eng halten -> Daily-DD schuetzen
+tpPerc           = input.float(1.2, "Take-Profit %")          // ~1:2 RR
+dailyMaxLossPerc = input.float(2.5, "Daily Loss Killswitch %") // Puffer unter 3%
+
+var float dayStartEquity = na
+if ta.change(time("D")) != 0
+    dayStartEquity := strategy.equity
+dayPnLPerc = (strategy.equity - dayStartEquity) / dayStartEquity * 100
+killSwitch = dayPnLPerc <= -dailyMaxLossPerc // heute keine neuen Trades mehr
+
+if buy and not killSwitch
+    strategy.entry("Long", strategy.long)
+if sell and not killSwitch
+    strategy.entry("Short", strategy.short)
+
+if strategy.position_size > 0
+    strategy.exit("L-exit", "Long",  stop=strategy.position_avg_price * (1 - slPerc / 100), limit=strategy.position_avg_price * (1 + tpPerc / 100))
+if strategy.position_size < 0
+    strategy.exit("S-exit", "Short", stop=strategy.position_avg_price * (1 + slPerc / 100), limit=strategy.position_avg_price * (1 - tpPerc / 100))
+if killSwitch
+    strategy.close_all("Daily kill")

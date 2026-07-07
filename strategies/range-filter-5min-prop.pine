@@ -1,0 +1,64 @@
+//@version=5
+// Range Filter 5min Strategy + Prop-Risk-Overlay (Leverage "Turbo Trade") — TOP-EMPFEHLUNG
+// Kern: Range Filter (DonovanWall / guikroth-Version)
+// Original: https://www.tradingview.com/script/J8GzFGfD-Range-Filter-Buy-and-Sell-5min-guikroth-version/
+//           https://www.tradingview.com/script/lut7sBgG-Range-Filter-DW/
+// Empfohlen: Forex-Majors, M5. Overlay: fixer SL/TP + Daily-Loss-Killswitch.
+strategy("Range Filter 5min Strategy + Prop Overlay", overlay=true, initial_capital=10000,
+     default_qty_type=strategy.percent_of_equity, default_qty_value=100,
+     commission_type=strategy.commission.percent, commission_value=0.002, slippage=2)
+
+// --- Range Filter Kern ---
+src  = input(close, "Source")
+per  = input.int(100, "Sampling Period")
+mult = input.float(3.0, "Range Multiplier")
+
+smoothrng(x, t, m) =>
+    avrng = ta.ema(math.abs(x - x[1]), t)
+    ta.ema(avrng, t * 2 - 1) * m
+smrng = smoothrng(src, per, mult)
+
+rngfilt(x, r) =>
+    var float rf = x
+    rf := x > nz(rf[1]) ? (x - r < nz(rf[1]) ? nz(rf[1]) : x - r) :
+                          (x + r > nz(rf[1]) ? nz(rf[1]) : x + r)
+    rf
+filt = rngfilt(src, smrng)
+
+var float upward = 0.0
+upward := filt > filt[1] ? nz(upward[1]) + 1 : filt < filt[1] ? 0 : nz(upward[1])
+var float downward = 0.0
+downward := filt < filt[1] ? nz(downward[1]) + 1 : filt > filt[1] ? 0 : nz(downward[1])
+
+longCond  = src > filt and upward > 0
+shortCond = src < filt and downward > 0
+
+var int CondIni = 0
+CondIni := longCond ? 1 : shortCond ? -1 : nz(CondIni[1])
+longSig  = longCond  and nz(CondIni[1]) == -1
+shortSig = shortCond and nz(CondIni[1]) ==  1
+
+plot(filt, "Range Filter", color=upward > 0 ? color.green : downward > 0 ? color.red : color.orange, linewidth=2)
+
+// --- Prop-Risk-Overlay ---
+slPerc           = input.float(0.5, "Stop-Loss %")
+tpPerc           = input.float(1.0, "Take-Profit %")
+dailyMaxLossPerc = input.float(2.5, "Daily Loss Killswitch %") // Puffer unter 3%
+
+var float dayStartEquity = na
+if ta.change(time("D")) != 0
+    dayStartEquity := strategy.equity
+dayPnLPerc = (strategy.equity - dayStartEquity) / dayStartEquity * 100
+killSwitch = dayPnLPerc <= -dailyMaxLossPerc
+
+if longSig and not killSwitch
+    strategy.entry("Long", strategy.long)
+if shortSig and not killSwitch
+    strategy.entry("Short", strategy.short)
+
+if strategy.position_size > 0
+    strategy.exit("L-exit", "Long",  stop=strategy.position_avg_price * (1 - slPerc / 100), limit=strategy.position_avg_price * (1 + tpPerc / 100))
+if strategy.position_size < 0
+    strategy.exit("S-exit", "Short", stop=strategy.position_avg_price * (1 + slPerc / 100), limit=strategy.position_avg_price * (1 - tpPerc / 100))
+if killSwitch
+    strategy.close_all("Daily kill")
