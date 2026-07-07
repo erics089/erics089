@@ -1,0 +1,149 @@
+//@version=5
+// Lorentzian kNN Strategy + Prop-Risk-Overlay (Leverage "Turbo Trade")
+// Kern: Strategy-Port des Open-Source-Indikators
+//   "Machine Learning: Lorentzian Classification" von jdehorty
+//   https://www.tradingview.com/script/WhBzgfDu-Machine-Learning-Lorentzian-Classification/
+// Dies ist eine EIGENSTAENDIGE Reimplementation des Kern-Algorithmus
+// (kNN / Approximate Nearest Neighbors mit Lorentz-Distanz ueber einen
+// Feature-Space aus RSI/WT/CCI/ADX), da das Original ein Indikator ohne
+// strategy.*-Aufrufe ist. Bitte Signale gegen das Original vergleichen.
+// Overlay: fixer SL/TP + Daily-Loss-Killswitch + Zeit-Exit (4 Bars, wie Original).
+strategy("Lorentzian kNN Strategy + Prop Overlay", overlay=true, initial_capital=10000,
+     default_qty_type=strategy.percent_of_equity, default_qty_value=100,
+     commission_type=strategy.commission.percent, commission_value=0.002, slippage=2,
+     max_bars_back=2000)
+
+// ================= Feature Engineering =================
+// Rescale-Helfer (0..1)
+rescale(x, oldMin, oldMax) =>
+    (x - oldMin) / math.max(oldMax - oldMin, 1e-10)
+
+// Laufende Min/Max-Normalisierung (fuer unbeschraenkte Oszillatoren wie WT/CCI)
+normalize(x) =>
+    var float hMin = na
+    var float hMax = na
+    hMin := na(hMin) ? x : math.min(hMin, x)
+    hMax := na(hMax) ? x : math.max(hMax, x)
+    rescale(x, hMin, hMax)
+
+// WaveTrend (LazyBear-Formel, wie im Original als Feature genutzt)
+wavetrend(_src, n1, n2) =>
+    esa = ta.ema(_src, n1)
+    d   = ta.ema(math.abs(_src - esa), n1)
+    ci  = (_src - esa) / (0.015 * d)
+    ta.ema(ci, n2)
+
+// ADX (klassisch)
+adxVal(len) =>
+    [_, _, a] = ta.dmi(len, len)
+    a
+
+// Features analog zum Original: RSI(14), WT(10,11), CCI(20), ADX(20), RSI(9)
+f1 = rescale(ta.rsi(close, 14), 0, 100)
+f2 = normalize(wavetrend(hlc3, 10, 11))
+f3 = normalize(ta.cci(close, 20))
+f4 = rescale(adxVal(20), 0, 100)
+f5 = rescale(ta.rsi(close, 9), 0, 100)
+
+// ================= kNN mit Lorentz-Distanz =================
+neighborsCount = input.int(8, "Neighbors Count (k)", minval=1, maxval=100)
+maxBarsBack    = input.int(2000, "Max Bars Back", minval=100)
+futureBars     = 4 // Label-Horizont wie im Original
+
+// Trainingslabel: Richtung des Preises 4 Bars in der Zukunft
+// (auf Bar i bekannt, sobald i mindestens 4 Bars alt ist)
+label = close < close[futureBars] ? -1 : close > close[futureBars] ? 1 : 0
+
+// Historien-Arrays
+var f1Arr = array.new_float()
+var f2Arr = array.new_float()
+var f3Arr = array.new_float()
+var f4Arr = array.new_float()
+var f5Arr = array.new_float()
+var yArr  = array.new_int()
+array.push(f1Arr, f1[futureBars])
+array.push(f2Arr, f2[futureBars])
+array.push(f3Arr, f3[futureBars])
+array.push(f4Arr, f4[futureBars])
+array.push(f5Arr, f5[futureBars])
+array.push(yArr, label)
+
+// Lorentz-Distanz: sum(ln(1+|xi - yi|))
+lorentzian(i) =>
+    math.log(1 + math.abs(f1 - array.get(f1Arr, i))) +
+     math.log(1 + math.abs(f2 - array.get(f2Arr, i))) +
+     math.log(1 + math.abs(f3 - array.get(f3Arr, i))) +
+     math.log(1 + math.abs(f4 - array.get(f4Arr, i))) +
+     math.log(1 + math.abs(f5 - array.get(f5Arr, i)))
+
+// ANN-Suche wie im Original: chronologisch, nur jede 4. Bar (zeitliche
+// Entkorrelierung), Schwellenwert = zuletzt akzeptierte Distanz; wenn der
+// Puffer voll ist, aeltesten Nachbarn verwerfen und Schwelle auf das
+// 75. Perzentil anheben.
+prediction = 0.0
+n = array.size(yArr)
+if barstate.isconfirmed and n > futureBars
+    sizeLoop = math.min(maxBarsBack - 1, n - 1)
+    var distances   = array.new_float()
+    var predictions = array.new_int()
+    array.clear(distances)
+    array.clear(predictions)
+    lastDistance = -1.0
+    for i = 0 to sizeLoop
+        if i % 4 == 0
+            d = lorentzian(n - 1 - i)
+            if d >= lastDistance
+                lastDistance := d
+                array.push(distances, d)
+                array.push(predictions, array.get(yArr, n - 1 - i))
+                if array.size(predictions) > neighborsCount
+                    lastDistance := array.get(distances, math.round(neighborsCount * 3 / 4))
+                    array.shift(distances)
+                    array.shift(predictions)
+    prediction := array.sum(predictions)
+
+// ================= Filter (wie Original: Volatilitaet + Regime + Trend) =================
+useVolFilter   = input.bool(true, "Volatility Filter")
+useEmaFilter   = input.bool(false, "EMA-200 Trendfilter")
+emaLen         = input.int(200, "EMA Length")
+
+volFilter = not useVolFilter or ta.atr(1) > ta.atr(10) * 0.5
+emaOk     = ta.ema(close, emaLen)
+longOk    = not useEmaFilter or close > emaOk
+shortOk   = not useEmaFilter or close < emaOk
+
+longSig  = prediction > 0 and volFilter and longOk
+shortSig = prediction < 0 and volFilter and shortOk
+
+// ================= Prop-Risk-Overlay =================
+slPerc           = input.float(0.6, "Stop-Loss %")
+tpPerc           = input.float(1.2, "Take-Profit %")
+dailyMaxLossPerc = input.float(2.5, "Daily Loss Killswitch %") // Puffer unter 3%
+useTimeExit      = input.bool(true, "Zeit-Exit nach 4 Bars (wie Original)")
+
+var float dayStartEquity = na
+if ta.change(time("D")) != 0
+    dayStartEquity := strategy.equity
+dayPnLPerc = (strategy.equity - dayStartEquity) / dayStartEquity * 100
+killSwitch = dayPnLPerc <= -dailyMaxLossPerc
+
+var int barsInTrade = 0
+barsInTrade := strategy.position_size != 0 ? barsInTrade + 1 : 0
+
+if longSig and not killSwitch and strategy.position_size <= 0
+    strategy.entry("Long", strategy.long)
+if shortSig and not killSwitch and strategy.position_size >= 0
+    strategy.entry("Short", strategy.short)
+
+if strategy.position_size > 0
+    strategy.exit("L-exit", "Long",  stop=strategy.position_avg_price * (1 - slPerc / 100), limit=strategy.position_avg_price * (1 + tpPerc / 100))
+if strategy.position_size < 0
+    strategy.exit("S-exit", "Short", stop=strategy.position_avg_price * (1 + slPerc / 100), limit=strategy.position_avg_price * (1 - tpPerc / 100))
+
+if useTimeExit and barsInTrade >= futureBars
+    strategy.close_all("Time exit")
+if killSwitch
+    strategy.close_all("Daily kill")
+
+plotshape(longSig and strategy.position_size <= 0,  "Long",  shape.triangleup,   location.belowbar, color.green, size=size.small)
+plotshape(shortSig and strategy.position_size >= 0, "Short", shape.triangledown, location.abovebar, color.red,   size=size.small)
