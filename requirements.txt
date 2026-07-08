@@ -1,0 +1,11 @@
+# Kern
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+python-multipart==0.0.17
+
+# Scraping / Enrichment
+httpx==0.28.1
+beautifulsoup4==4.12.3
+
+# Optional: KI-Scriptgenerierung (nur nötig, wenn du Claude nutzen willst)
+anthropic==0.40.0
