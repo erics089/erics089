@@ -267,9 +267,12 @@ async function deleteLead(id) {
 $("#btn-generate").addEventListener("click", () => runWorkflow("auto", {
   count: +$("#gen-count").value, region: $("#gen-region").value || null,
 }, $("#btn-generate")));
-$("#btn-scrape").addEventListener("click", () => runWorkflow("scrape", {
-  query: $("#scrape-query").value, count: +$("#scrape-count").value,
-}, $("#btn-scrape")));
+$("#btn-scrape").addEventListener("click", () => {
+  const cats = $$("#osm-cats input:checked").map(c => c.value);
+  runWorkflow("osm", {
+    city: $("#osm-city").value, categories: cats, count: +$("#osm-count").value,
+  }, $("#btn-scrape"));
+});
 
 async function runWorkflow(source, params, btn) {
   btn.disabled = true; const orig = btn.textContent; btn.textContent = "Läuft…";

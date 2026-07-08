@@ -28,10 +28,12 @@ def _startup():
 # Pydantic-Modelle
 # ---------------------------------------------------------------------------
 class WorkflowRequest(BaseModel):
-    source: str = "auto"          # 'auto' | 'scrape'
+    source: str = "auto"          # 'auto' | 'osm'
     count: int = 10
     region: str | None = None
     query: str | None = None
+    city: str | None = None
+    categories: list[str] | None = None
     segments: list[str] | None = None
 
 

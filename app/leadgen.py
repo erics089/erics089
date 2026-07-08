@@ -248,56 +248,132 @@ def generate_leads(count=10, region=None, segments=None, seed=None) -> list:
 
 
 # ---------------------------------------------------------------------------
-# Connector 2: WebScrapeConnector (öffentliche Quellen, best effort)
+# Connector 2: OpenStreetMap / Overpass (echte öffentliche B2B-Firmendaten)
 # ---------------------------------------------------------------------------
-def scrape_public_source(query="bauträger münchen", max_results=10) -> tuple[list, list]:
-    """Versucht, eine öffentliche Verzeichnisseite zu scrapen.
+# Rechtlich sauber: OSM ist eine offene Datenbank (ODbL); die enthaltenen
+# Firmen-POIs (Makler, Architekten, Hausverwaltungen, Bauunternehmen) sind
+# öffentliche Gewerbedaten. Für die telefonische Erstansprache im B2B-Kontext
+# geeignet. Mehrere Endpunkte für Ausfallsicherheit.
+OVERPASS_ENDPOINTS = [
+    "https://overpass-api.de/api/interpreter",
+    "https://overpass.kumi.systems/api/interpreter",
+    "https://overpass.osm.ch/api/interpreter",
+]
 
-    Gibt (leads, log) zurück. Bei fehlendem Netz / Blockade wird ein
-    aussagekräftiges Log zurückgegeben und leads bleibt leer – der Aufrufer
-    kann dann auf den AutoGenerator zurückfallen.
+# OSM-Kategorie -> (Overpass-Filter, imondu-Segment)
+OSM_CATEGORIES = {
+    "makler": ('nwr["office"="estate_agent"](area.a);', "Hausverwaltung"),
+    "architekt": ('nwr["office"="architect"](area.a);', "Architekturbüro"),
+    "hausverwaltung": ('nwr["office"="property_management"](area.a);', "Hausverwaltung"),
+    "bautraeger": ('nwr["office"="construction_company"](area.a);'
+                   'nwr["craft"="builder"](area.a);', "Bauträger"),
+    "projektentwickler": ('nwr["office"="company"]["company"="developer"](area.a);',
+                          "Projektentwickler"),
+}
+DEFAULT_OSM_CATEGORIES = ["makler", "architekt", "hausverwaltung", "bautraeger"]
+
+
+def build_overpass_query(city: str, categories: list[str]) -> str:
+    """Baut eine Overpass-QL-Abfrage für die gewählte Stadt & Kategorien."""
+    cats = [c for c in (categories or DEFAULT_OSM_CATEGORIES) if c in OSM_CATEGORIES]
+    if not cats:
+        cats = DEFAULT_OSM_CATEGORIES
+    filters = "".join(OSM_CATEGORIES[c][0] for c in cats)
+    city_esc = (city or "München").replace('"', "")
+    return (f'[out:json][timeout:25];'
+            f'area["name"="{city_esc}"]["boundary"="administrative"]->.a;'
+            f'({filters});out center tags;')
+
+
+def _osm_segment_for(tags: dict) -> str:
+    if tags.get("office") == "architect":
+        return "Architekturbüro"
+    if tags.get("office") == "property_management":
+        return "Hausverwaltung"
+    if tags.get("office") == "estate_agent":
+        return "Hausverwaltung"
+    if tags.get("company") == "developer":
+        return "Projektentwickler"
+    if tags.get("craft") == "builder" or tags.get("office") == "construction_company":
+        return "Bauträger"
+    return "Immobilieninvestor"
+
+
+def parse_overpass(data: dict, max_results: int = 25) -> list:
+    """Wandelt eine Overpass-JSON-Antwort in Lead-Dicts um.
+
+    Getrennt vom Netzwerk-Fetch, damit die Logik offline testbar ist.
+    """
+    leads = []
+    for el in data.get("elements", []):
+        tags = el.get("tags", {})
+        name = tags.get("name")
+        if not name:
+            continue
+        phone = tags.get("phone") or tags.get("contact:phone")
+        website = tags.get("website") or tags.get("contact:website")
+        email = tags.get("email") or tags.get("contact:email")
+        street = tags.get("addr:street")
+        if street and tags.get("addr:housenumber"):
+            street = f"{street} {tags['addr:housenumber']}"
+        leads.append({
+            "lead_type": "b2b",
+            "company_name": name,
+            "phone": phone,
+            "email": email,
+            "website": website,
+            "street": street,
+            "postal_code": tags.get("addr:postcode"),
+            "city": tags.get("addr:city"),
+            "segment": _osm_segment_for(tags),
+            "source": "openstreetmap",
+            "enrichment": {
+                "notes": "Öffentlicher OSM-Firmeneintrag (Gewerbedaten, ODbL).",
+                "osm_id": f"{el.get('type')}/{el.get('id')}",
+                "osm_category": tags.get("office") or tags.get("craft") or "-",
+            },
+        })
+        if len(leads) >= max_results:
+            break
+    return leads
+
+
+def scrape_overpass(city="München", categories=None, max_results=25) -> tuple[list, list]:
+    """Fragt echte B2B-Firmen aus OpenStreetMap ab.
+
+    Gibt (leads, log) zurück. Bei Netz-/Policy-Blockade bleibt leads leer und
+    der Aufrufer fällt sauber auf den Auto-Generator zurück.
     """
     log = []
-    leads = []
     try:
         import httpx
-        from bs4 import BeautifulSoup
     except ImportError:
-        log.append("httpx/bs4 nicht installiert – Scraping übersprungen.")
-        return leads, log
+        return [], ["httpx nicht installiert – OSM-Abfrage übersprungen."]
 
-    # Beispielhafte, öffentlich zugängliche Quelle. In der Praxis hier die
-    # gewünschte Zielseite / API eintragen (robots.txt & AGB beachten!).
-    url = "https://www.wikidata.org/w/index.php"
-    params = {"search": query, "title": "Special:Search", "fulltext": "1"}
-    try:
-        with httpx.Client(timeout=12, follow_redirects=True,
-                          headers={"User-Agent": "imondu-sales-dashboard/1.0"}) as client:
-            resp = client.get(url, params=params)
-            log.append(f"HTTP {resp.status_code} von {resp.url.host}")
+    query = build_overpass_query(city, categories)
+    log.append(f"Overpass-Abfrage für '{city}' ({', '.join(categories or DEFAULT_OSM_CATEGORIES)}).")
+    for ep in OVERPASS_ENDPOINTS:
+        try:
+            with httpx.Client(timeout=30,
+                              headers={"User-Agent": "imondu-sales-dashboard/1.0"}) as client:
+                resp = client.post(ep, data={"data": query})
+            log.append(f"HTTP {resp.status_code} von {httpx.URL(ep).host}")
             if resp.status_code == 200:
-                soup = BeautifulSoup(resp.text, "html.parser")
-                hits = soup.select(".mw-search-result-heading a")[:max_results]
-                for h in hits:
-                    name = h.get_text(strip=True)
-                    if not name:
-                        continue
-                    leads.append({
-                        "lead_type": "b2b",
-                        "company_name": name,
-                        "segment": "Projektentwickler",
-                        "source": "web-scrape",
-                        "enrichment": {
-                            "notes": f"Öffentlicher Treffer zu Suche '{query}'. "
-                                     "Kontaktdaten müssen noch recherchiert werden.",
-                            "source_url": str(resp.url),
-                        },
-                    })
-                log.append(f"{len(leads)} Treffer geparst.")
-    except Exception as e:  # noqa: BLE001 - best effort, jede Netzstörung abfangen
-        log.append(f"Scraping fehlgeschlagen ({type(e).__name__}: {e}). "
-                   "Umgebung erlaubt evtl. keinen Outbound-Traffic.")
-    return leads, log
+                leads = parse_overpass(resp.json(), max_results)
+                log.append(f"{len(leads)} reale Firmen mit Namen extrahiert "
+                           f"({sum(1 for l in leads if l['phone'])} mit Telefon).")
+                return leads, log
+        except Exception as e:  # noqa: BLE001 - Endpunkt-Ausfall abfangen, nächsten versuchen
+            log.append(f"Endpunkt {httpx.URL(ep).host} fehlgeschlagen "
+                       f"({type(e).__name__}). Versuche nächsten…")
+    log.append("Kein Overpass-Endpunkt erreichbar (evtl. Netzwerk-/Policy-Sperre).")
+    return [], log
+
+
+# Rückwärtskompatibler Alias (frühere API)
+def scrape_public_source(query="bauträger münchen", max_results=10):
+    city = query.split()[-1] if query else "München"
+    return scrape_overpass(city=city, max_results=max_results)
 
 
 # ---------------------------------------------------------------------------
@@ -316,19 +392,23 @@ def run_workflow(source: str, params: dict) -> dict:
             result["log"].insert(
                 0, f"Auto-Generator: {count} passende B2B-Leads erzeugt "
                    f"(Region: {region or 'alle'}).")
-        elif source == "scrape":
-            query = params.get("query", "bauträger münchen")
-            max_results = int(params.get("count", 10))
-            scraped, log = scrape_public_source(query, max_results)
+        elif source in ("scrape", "osm"):
+            city = params.get("city") or params.get("region") or params.get("query") or "München"
+            categories = params.get("categories") or None
+            max_results = int(params.get("count", 25))
+            scraped, log = scrape_overpass(city, categories, max_results)
             if scraped:
-                result = insert_leads(scraped, source="web-scrape")
+                result = insert_leads(scraped, source="openstreetmap")
                 result["log"] = log + result["log"]
             else:
                 # Sauberer Fallback, damit der Button immer nützliche Leads liefert
-                fb = generate_leads(count=max_results, region=params.get("region"))
-                result = insert_leads(fb, source="auto-generator (scrape-fallback)")
-                result["log"] = (log + ["Kein Live-Treffer – Fallback auf "
-                                        "Auto-Generator, damit die Pipeline gefüllt bleibt."]
+                fb = generate_leads(count=int(params.get("count", 10)),
+                                    region=params.get("region") or params.get("city"))
+                result = insert_leads(fb, source="auto-generator (osm-fallback)")
+                result["log"] = (log + ["→ Keine Live-Daten (z. B. Netzwerk-/Policy-"
+                                        "Sperre) – Fallback auf Auto-Generator, damit die "
+                                        "Pipeline gefüllt bleibt. Lokal auf deinem Rechner "
+                                        "liefert OSM echte Firmen."]
                                  + result["log"])
         else:
             raise ValueError(f"Unbekannte Quelle: {source}")

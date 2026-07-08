@@ -35,10 +35,15 @@ Auf Knopfdruck laufen **Workflows**, die neue Kandidaten beschaffen:
   Projektentwickler, Architekten, Hausverwaltungen, Investoren …) inklusive
   angereicherter Infos: Ansprechpartner, Objektart, Entwicklungs­potenzial,
   Firmengröße. Funktioniert immer, unabhängig von der Netzwerkfreigabe.
-- **Web-Scraper** – Konnektor, der eine öffentliche Quelle durchsucht. Ist kein
-  Outbound-Netz verfügbar (z. B. in isolierten Umgebungen), fällt er sauber auf
-  den Generator zurück, damit die Pipeline nie leer bleibt. Eigene Zielquellen
-  lassen sich in `app/leadgen.py → scrape_public_source()` eintragen.
+- **Echte Firmen (OpenStreetMap)** – zieht reale B2B-Firmen einer Stadt
+  (Makler, Architekten, Hausverwaltungen, Bauunternehmen) inkl. **Adresse,
+  Telefon und Website** aus öffentlichen Kartendaten (Overpass-API, Datenbasis
+  ODbL – rechtlich saubere Gewerbedaten). Wähle Stadt + Kategorien und klick
+  „Firmen laden". Ist kein Outbound-Netz verfügbar (z. B. gesperrt durch eine
+  Firmen-/Umgebungs-Policy), fällt der Konnektor sauber auf den Auto-Generator
+  zurück, damit die Pipeline nie leer bleibt. Logik: `app/leadgen.py →
+  scrape_overpass()` / `parse_overpass()`; weitere Quellen lassen sich analog
+  ergänzen.
 - **CSV-Import** – eigene Listen hochladen (flexible Spaltennamen).
 
 Jeder Lead bekommt automatisch einen **Score (0–100)** und eine Begründung,
@@ -102,7 +107,15 @@ seed.py         Demo-Daten
 run.sh          Setup + Start
 ```
 
-### Eigene Scraping-Quelle anbinden
-In `app/leadgen.py` die Funktion `scrape_public_source()` anpassen: Ziel-URL,
-Parameter und CSS-Selektoren eintragen. `run_workflow("scrape", …)` ruft sie auf.
-Bitte robots.txt und Nutzungsbedingungen der Zielseite beachten.
+### Echte Lead-Quelle: OpenStreetMap / Overpass
+Der `osm`-Workflow fragt echte Gewerbe-POIs über die Overpass-API ab
+(`scrape_overpass()`), Kategorien-Mapping in `OSM_CATEGORIES`, Parsing in
+`parse_overpass()` (netzunabhängig und damit unit-testbar). Läuft lokal ohne
+Key. **Hinweis:** In isolierten CI-/Cloud-Umgebungen ist ausgehender Traffic oft
+per Policy gesperrt (HTTP 403) – dort greift automatisch der Fallback; auf einem
+normalen Rechner liefert die Quelle reale Firmen.
+
+### Weitere Quellen anbinden
+Analog zu `scrape_overpass()` eine Funktion ergänzen, die Lead-Dicts liefert,
+und in `run_workflow()` einhängen. Bitte robots.txt/AGB/Datenschutz der Quelle
+beachten – für B2C gilt der §7-UWG-Hinweis oben.

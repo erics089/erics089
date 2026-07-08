@@ -143,6 +143,8 @@ input:focus, select:focus, textarea:focus { border-color: var(--brand); }
 .card .btn { margin-top: 16px; }
 .card label.check { display: flex; align-items: center; gap: 8px; }
 .card label.check input { width: auto; margin: 0; }
+.checks { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 6px; }
+.checks .check { font-size: 13px; color: var(--text); }
 .settings-card { max-width: 560px; }
 .settings-card hr { border: none; border-top: 1px solid var(--border); margin: 18px 0; }
 .saved { color: var(--green); font-size: 13px; margin-left: 10px; }

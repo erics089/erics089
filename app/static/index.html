@@ -103,13 +103,21 @@
             <button class="btn primary" id="btn-generate">Leads suchen</button>
           </div>
           <div class="card">
-            <h3>🌐 Web-Scraper</h3>
-            <p class="muted">Sucht in einer öffentlichen Quelle nach Kandidaten.
-              Ist kein Outbound-Netz verfügbar, wird automatisch auf den Generator
-              zurückgefallen, damit die Pipeline nie leer bleibt.</p>
-            <label>Suchbegriff <input type="text" id="scrape-query" value="bauträger münchen"></label>
-            <label>Max. Treffer <input type="number" id="scrape-count" value="10" min="1" max="50"></label>
-            <button class="btn primary" id="btn-scrape">Quelle scrapen</button>
+            <h3>🌐 Echte Firmen (OpenStreetMap)</h3>
+            <p class="muted">Zieht reale B2B-Firmen (Makler, Architekten, Hausverwaltungen,
+              Bauunternehmen) einer Stadt inkl. Adresse/Telefon/Website aus öffentlichen
+              Kartendaten. Ist kein Outbound-Netz verfügbar (z. B. Firmen-Policy), wird
+              automatisch auf den Generator zurückgefallen.</p>
+            <label>Stadt <input type="text" id="osm-city" value="München"></label>
+            <label>Kategorien
+              <span class="checks" id="osm-cats">
+                <label class="check"><input type="checkbox" value="makler" checked> Makler</label>
+                <label class="check"><input type="checkbox" value="architekt" checked> Architekten</label>
+                <label class="check"><input type="checkbox" value="hausverwaltung" checked> Hausverwaltung</label>
+                <label class="check"><input type="checkbox" value="bautraeger" checked> Bauunternehmen</label>
+              </span></label>
+            <label>Max. Treffer <input type="number" id="osm-count" value="25" min="1" max="100"></label>
+            <button class="btn primary" id="btn-scrape">Firmen laden</button>
           </div>
         </div>
         <div id="workflow-log" class="log" hidden></div>
