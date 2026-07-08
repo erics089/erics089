@@ -7,7 +7,7 @@ import io
 import time
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, UploadFile, File
+from fastapi import FastAPI, HTTPException, UploadFile, File, Request
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -89,6 +89,16 @@ class NewLead(BaseModel):
     city: str | None = None
     segment: str | None = None
     consent: int = 0
+
+
+class OptInRequest(BaseModel):
+    name: str
+    phone: str
+    email: str | None = None
+    city: str | None = None
+    property_type: str | None = None
+    message: str | None = None
+    consent: bool = False          # muss True sein (aktive Einwilligung)
 
 
 # ---------------------------------------------------------------------------
@@ -259,6 +269,60 @@ def patch_settings(payload: SettingsUpdate):
         updates.pop("anthropic_api_key", None)
     db.update_settings(updates)
     return {"ok": True}
+
+
+# ---------------------------------------------------------------------------
+# B2C Opt-in (öffentliche Landingpage → rechtssichere Privatleads)
+# ---------------------------------------------------------------------------
+# Der einzige legale Weg, Privatpersonen später telefonisch zu kontaktieren:
+# eine ausdrückliche, dokumentierte Einwilligung (§7 UWG / DSGVO Art. 6/7).
+# Das Formular verlangt ein aktiv gesetztes Häkchen; wir speichern den exakten
+# Einwilligungstext, Zeitstempel und die IP als Nachweis.
+CONSENT_TEXT = (
+    "Ich möchte von imondu zu den Entwicklungs- und Wertsteigerungs-Möglichkeiten "
+    "meiner Immobilie beraten werden und willige ausdrücklich ein, dass imondu mich "
+    "hierzu telefonisch und per E-Mail kontaktiert. Diese Einwilligung kann ich "
+    "jederzeit mit Wirkung für die Zukunft widerrufen."
+)
+
+
+@app.post("/api/optin")
+def optin(payload: OptInRequest, request: Request):
+    if not payload.consent:
+        raise HTTPException(422, "Ohne ausdrückliche Einwilligung ist keine "
+                                 "Kontaktaufnahme möglich.")
+    if not payload.name.strip() or not payload.phone.strip():
+        raise HTTPException(422, "Name und Telefonnummer sind erforderlich.")
+    client_ip = request.client.host if request.client else None
+    raw = {
+        "lead_type": "b2c",
+        "consent": 1,
+        "contact_name": payload.name.strip(),
+        "phone": payload.phone.strip(),
+        "email": (payload.email or "").strip() or None,
+        "city": (payload.city or "").strip() or None,
+        "segment": "Grundstückseigentümer (Gewerbe)",
+        "source": "landingpage-optin",
+        "enrichment": {
+            "property_type": (payload.property_type or "").strip() or None,
+            "message": (payload.message or "").strip() or None,
+            "consent_text": CONSENT_TEXT,
+            "consent_at": time.time(),
+            "consent_ip": client_ip,
+            "notes": "Einwilligung per Landingpage-Formular (Opt-in) dokumentiert.",
+        },
+    }
+    lead = leadgen.enrich_lead(raw)
+    new_id = db.create_lead(lead)
+    if not new_id:
+        # Duplikat: bestehende Einwilligung aktualisieren, freundlich bestätigen
+        return {"ok": True, "duplicate": True}
+    return {"ok": True, "id": new_id}
+
+
+@app.get("/interesse")
+def interesse():
+    return FileResponse(STATIC_DIR / "interesse.html")
 
 
 # ---------------------------------------------------------------------------

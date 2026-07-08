@@ -145,6 +145,11 @@ async function openDrawer(id) {
     </div>
     ${isBadB2C ? `<div class="warn-banner">⚠️ Privatkontakt ohne Einwilligung –
        Telefon-Kaltakquise unzulässig (§7 UWG). Erst nach Opt-in anrufen.</div>` : ""}
+    ${(l.lead_type === "b2c" && l.consent) ? `<div class="ok-banner">
+       ✓ Einwilligung dokumentiert${enr.consent_at ? " am " + fmtDate(enr.consent_at) : ""}
+       ${enr.consent_ip ? " · IP " + esc(enr.consent_ip) : ""} – telefonischer Kontakt zulässig.
+       ${enr.consent_text ? `<div class="consent-proof">„${esc(enr.consent_text)}"</div>` : ""}
+     </div>` : ""}
     <div class="drawer-meta">
       <span>👤 ${esc(l.contact_name || "—")}${enr.role ? " · " + esc(enr.role) : ""}</span>
       <span>📞 ${esc(l.phone || "—")}</span>
