@@ -1,0 +1,226 @@
+// AGENTUR-OS — Prisma Schema
+// Multi-Tenant-Modell: Plattformbetreiber -> Agentur (Tenant) -> Endkunde
+// Siehe ARCHITECTURE.md für die Begründung der Design-Entscheidungen.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Plattform- & Agentur-Ebene
+// ---------------------------------------------------------------------------
+
+/// Ein White-Label-Mandant (Werbeagentur), die AGENTUR-OS als SaaS nutzt.
+model Agency {
+  id                 String       @id @default(cuid())
+  name               String
+  slug               String       @unique
+  domain             String?      @unique
+  logoUrl            String?
+  primaryColor       String?      @default("#4F46E5")
+  secondaryColor     String?      @default("#111827")
+  emailSenderName    String?
+  emailSenderAddress String?
+  status             AgencyStatus @default(TRIAL)
+
+  memberships   AgencyMembership[]
+  customers     Customer[]
+  rolePresets   RolePreset[]
+  apiCredentials ApiCredential[]
+  auditLogs     AuditLog[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("agencies")
+}
+
+enum AgencyStatus {
+  TRIAL
+  ACTIVE
+  SUSPENDED
+  CANCELLED
+}
+
+// ---------------------------------------------------------------------------
+// Benutzer & Zugriff
+// ---------------------------------------------------------------------------
+
+/// Ein Login-Account. Kann Plattform-Owner sein und/oder Mitgliedschaften
+/// in einer oder mehreren Agenturen halten (z.B. externer Dienstleister).
+model User {
+  id               String  @id @default(cuid())
+  email            String  @unique
+  passwordHash     String
+  name             String
+  isPlatformOwner  Boolean @default(false)
+  twoFactorSecret  String?
+  twoFactorEnabled Boolean @default(false)
+  image            String?
+
+  memberships AgencyMembership[]
+  auditLogs   AuditLog[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
+
+/// Verknüpft einen User mit einer Agentur inkl. Rolle und granularen
+/// Modul-Berechtigungen. Für die Rolle CLIENT ist customerId gesetzt und
+/// scoped den Zugriff auf genau einen Kunden (Kundenportal, Phase 6).
+model AgencyMembership {
+  id         String     @id @default(cuid())
+  userId     String
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  agencyId   String
+  agency     Agency     @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  role       AgencyRole
+  customerId String?
+  customer   Customer?  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  permissions ModulePermission[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, agencyId])
+  @@index([agencyId])
+  @@map("agency_memberships")
+}
+
+enum AgencyRole {
+  AGENCY_ADMIN
+  PROJECT_MANAGER
+  STAFF
+  ACCOUNTING
+  CLIENT
+}
+
+/// Feingranulare Sichtbar/Bearbeiten/Verwalten-Rechte pro Modul und
+/// Mitgliedschaft. Ergänzt die grobe AgencyRole.
+model ModulePermission {
+  id           String            @id @default(cuid())
+  membershipId String
+  membership   AgencyMembership  @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  module       AgencyModule
+  canView      Boolean           @default(false)
+  canEdit      Boolean           @default(false)
+  canManage    Boolean           @default(false)
+
+  @@unique([membershipId, module])
+  @@map("module_permissions")
+}
+
+enum AgencyModule {
+  CRM
+  BILLING
+  PROJECTS
+  WEBSITES
+  AI_MCP
+  MARKETING
+  BACKUP
+  SECURITY
+}
+
+/// Von Agentur-Admins gespeicherte Berechtigungs-Presets für eigene Rollen
+/// (z.B. "Junior Designer", "Freelancer Texter").
+model RolePreset {
+  id          String   @id @default(cuid())
+  agencyId    String
+  agency      Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  permissions Json // { [AgencyModule]: { canView, canEdit, canManage } }
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([agencyId, name])
+  @@map("role_presets")
+}
+
+// ---------------------------------------------------------------------------
+// CRM (Kundenverwaltung) — Grundmodell, Ausbau in Phase 1
+// ---------------------------------------------------------------------------
+
+model Customer {
+  id            String        @id @default(cuid())
+  agencyId      String
+  agency        Agency        @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  name          String
+  industry      String?
+  location      String?
+  contactPerson String?
+  email         String?
+  phone         String?
+  notes         String?
+  pipelineStage PipelineStage @default(LEAD)
+  ibanEncrypted String?
+
+  memberships AgencyMembership[]
+  auditLogs   AuditLog[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([agencyId])
+  @@map("customers")
+}
+
+enum PipelineStage {
+  LEAD
+  PROPOSAL
+  WON
+  ACTIVE
+  ARCHIVED
+}
+
+// ---------------------------------------------------------------------------
+// KI- & MCP-Verwaltung — Grundmodell, Ausbau in Phase 2/4
+// ---------------------------------------------------------------------------
+
+/// Verschlüsselt abgelegte Provider-Zugangsdaten (Anthropic, Bildgen, Meta,
+/// Google, Onepage-MCP, ...) pro Agentur-Instanz.
+model ApiCredential {
+  id             String   @id @default(cuid())
+  agencyId       String
+  agency         Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  provider       String // z.B. "anthropic", "fal.ai", "onepage-mcp"
+  label          String?
+  encryptedValue String // AES-256-GCM verschlüsselt, Key aus ENCRYPTION_KEY
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([agencyId, provider, label])
+  @@map("api_credentials")
+}
+
+// ---------------------------------------------------------------------------
+// Audit-Log — DSGVO-/GoBD-relevant, Pflicht laut Vorgabe
+// ---------------------------------------------------------------------------
+
+model AuditLog {
+  id         String    @id @default(cuid())
+  agencyId   String?
+  agency     Agency?   @relation(fields: [agencyId], references: [id], onDelete: SetNull)
+  userId     String?
+  user       User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  customerId String?
+  customer   Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  action     String // z.B. "customer.created", "invoice.voided"
+  entityType String
+  entityId   String?
+  changes    Json?
+  ipAddress  String?
+  createdAt  DateTime  @default(now())
+
+  @@index([agencyId, createdAt])
+  @@map("audit_logs")
+}
