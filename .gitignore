@@ -41,6 +41,8 @@ next-env.d.ts
 
 # generated assets
 /public/generated/
+/public/uploads/*
+!/public/uploads/.gitkeep
 
 # local scratch
 .tmp/

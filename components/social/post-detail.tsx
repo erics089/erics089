@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/badge";
 import { SlidePreview } from "@/components/social/slide-preview";
+import { AssetPicker } from "@/components/social/asset-picker";
 import { ConnectionNeeded } from "@/components/ui/empty-state";
 import { parsePostContent, type PostContentJson } from "@/lib/types";
 import { POST_STATUSES } from "@/lib/constants";
@@ -20,6 +21,7 @@ export function PostDetail({ post }: { post: Post }) {
   const [status, setStatus] = React.useState(post.status);
   const [busy, setBusy] = React.useState<string | null>(null);
   const [publishError, setPublishError] = React.useState<string | null>(null);
+  const [linkedImageUrl, setLinkedImageUrl] = React.useState<string | null>(null);
 
   const content = data.languages[activeLang];
   const otherLang = activeLang === "DE" ? "EN" : "DE";
@@ -68,7 +70,7 @@ export function PostDetail({ post }: { post: Post }) {
     const res = await fetch(`/api/posts/${post.id}/publish`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({}),
+      body: JSON.stringify({ imageUrl: linkedImageUrl }),
     });
     const json = await res.json();
     if (!res.ok) {
@@ -129,6 +131,8 @@ export function PostDetail({ post }: { post: Post }) {
           <SlidePreview content={content} />
         </CardContent>
       </Card>
+
+      <AssetPicker postId={post.id} onLinked={setLinkedImageUrl} />
 
       <Card>
         <CardHeader>
