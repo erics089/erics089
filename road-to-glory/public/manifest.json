@@ -1,0 +1,10 @@
+{
+  "name": "Road to Glory",
+  "short_name": "Glory",
+  "description": "An invite-only members club for high performers.",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#050506",
+  "theme_color": "#050506",
+  "orientation": "portrait"
+}
