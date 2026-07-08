@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>imondu · Sales-Dashboard</title>
+  <link rel="stylesheet" href="/styles.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏗️</text></svg>">
+</head>
+<body>
+  <div id="app">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="brand-mark">🏗️</span>
+        <div>
+          <div class="brand-name">imondu</div>
+          <div class="brand-sub">Sales Cockpit</div>
+        </div>
+      </div>
+      <nav class="nav">
+        <button class="nav-item active" data-view="pipeline">📋 Pipeline</button>
+        <button class="nav-item" data-view="followups">🔔 Wiedervorlagen <span id="nav-due" class="badge"></span></button>
+        <button class="nav-item" data-view="leadgen">⚡ Leads finden</button>
+        <button class="nav-item" data-view="import">📥 Import / Export</button>
+        <button class="nav-item" data-view="settings">⚙️ Einstellungen</button>
+      </nav>
+      <div class="sidebar-foot">
+        <div class="legal-note">
+          B2C-Kaltakquise per Telefon ist in DE ohne Einwilligung unzulässig (§7 UWG).
+          Solche Leads werden als <b>„nicht anrufen"</b> geführt.
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <main class="main">
+      <!-- KPI-Leiste -->
+      <section class="kpis" id="kpis"></section>
+
+      <!-- PIPELINE VIEW -->
+      <section class="view" id="view-pipeline">
+        <div class="toolbar">
+          <input type="search" id="search" placeholder="🔍 Suche: Firma, Name, Ort, Telefon…">
+          <select id="filter-status"><option value="alle">Alle Status</option></select>
+          <select id="filter-type">
+            <option value="alle">B2B + B2C</option>
+            <option value="b2b">Nur B2B</option>
+            <option value="b2c">Nur B2C</option>
+          </select>
+          <select id="sort">
+            <option value="score">Sortieren: Score</option>
+            <option value="neu">Neueste zuerst</option>
+            <option value="followup">Wiedervorlage</option>
+            <option value="name">Name A–Z</option>
+          </select>
+          <span class="spacer"></span>
+          <span id="lead-count" class="muted"></span>
+        </div>
+        <div class="table-wrap">
+          <table class="leads-table">
+            <thead>
+              <tr>
+                <th>Score</th><th>Firma / Kontakt</th><th>Segment</th>
+                <th>Ort</th><th>Telefon</th><th>Status</th><th>Wiedervorlage</th>
+              </tr>
+            </thead>
+            <tbody id="leads-body"></tbody>
+          </table>
+          <div id="leads-empty" class="empty" hidden>
+            Noch keine Leads. Gehe zu <b>⚡ Leads finden</b> und klick auf
+            <b>„Leads suchen"</b>.
+          </div>
+        </div>
+      </section>
+
+      <!-- FOLLOWUPS VIEW -->
+      <section class="view" id="view-followups" hidden>
+        <h2>🔔 Fällige Wiedervorlagen</h2>
+        <p class="muted">Leads, deren Rückruf-Termin erreicht ist – zuerst abtelefonieren.</p>
+        <div class="table-wrap">
+          <table class="leads-table">
+            <thead><tr><th>Score</th><th>Firma / Kontakt</th><th>Telefon</th>
+              <th>Fällig seit</th><th>Letztes Ergebnis</th></tr></thead>
+            <tbody id="followups-body"></tbody>
+          </table>
+          <div id="followups-empty" class="empty" hidden>Keine fälligen Wiedervorlagen. 🎉</div>
+        </div>
+      </section>
+
+      <!-- LEADGEN VIEW -->
+      <section class="view" id="view-leadgen" hidden>
+        <h2>⚡ Automatisch neue Leads finden</h2>
+        <p class="muted">Startet einen Workflow, der passende Kandidaten für imondu
+          beschafft, anreichert (Score, Objekt-/Potenzialinfos) und in deine Pipeline legt.</p>
+        <div class="cards">
+          <div class="card">
+            <h3>🤖 Auto-Generator</h3>
+            <p class="muted">Erzeugt sofort passende B2B-Leads (Bauträger, Architekten,
+              Projektentwickler…) inkl. Enrichment. Immer verfügbar.</p>
+            <label>Anzahl <input type="number" id="gen-count" value="12" min="1" max="100"></label>
+            <label>Region (optional) <input type="text" id="gen-region" placeholder="z.B. München"></label>
+            <button class="btn primary" id="btn-generate">Leads suchen</button>
+          </div>
+          <div class="card">
+            <h3>🌐 Echte Firmen (OpenStreetMap)</h3>
+            <p class="muted">Zieht reale B2B-Firmen (Makler, Architekten, Hausverwaltungen,
+              Bauunternehmen) einer Stadt inkl. Adresse/Telefon/Website aus öffentlichen
+              Kartendaten. Ist kein Outbound-Netz verfügbar (z. B. Firmen-Policy), wird
+              automatisch auf den Generator zurückgefallen.</p>
+            <label>Stadt <input type="text" id="osm-city" value="München"></label>
+            <label>Kategorien
+              <span class="checks" id="osm-cats">
+                <label class="check"><input type="checkbox" value="makler" checked> Makler</label>
+                <label class="check"><input type="checkbox" value="architekt" checked> Architekten</label>
+                <label class="check"><input type="checkbox" value="hausverwaltung" checked> Hausverwaltung</label>
+                <label class="check"><input type="checkbox" value="bautraeger" checked> Bauunternehmen</label>
+              </span></label>
+            <label>Max. Treffer <input type="number" id="osm-count" value="25" min="1" max="100"></label>
+            <button class="btn primary" id="btn-scrape">Firmen laden</button>
+          </div>
+        </div>
+        <div class="cards" style="margin-top:16px">
+          <div class="card">
+            <h3>🔒 Privatleads – aber rechtssicher (B2C)</h3>
+            <p class="muted">Privatpersonen darfst du nur mit ausdrücklicher
+              Einwilligung anrufen (§7 UWG). Teile diese Landingpage; wer das Formular
+              ausfüllt, landet <b>mit dokumentierter Einwilligung</b> automatisch in deiner
+              Pipeline und ist legal telefonisch kontaktierbar.</p>
+            <a class="btn primary" href="/interesse" target="_blank">Opt-in-Seite öffnen</a>
+            <span class="muted" style="margin-left:10px">Link: <code>/interesse</code></span>
+          </div>
+        </div>
+
+        <div id="workflow-log" class="log" hidden></div>
+        <h3 style="margin-top:28px">Letzte Läufe</h3>
+        <div id="jobs-list" class="jobs"></div>
+      </section>
+
+      <!-- IMPORT VIEW -->
+      <section class="view" id="view-import" hidden>
+        <h2>📥 Import / Export</h2>
+        <div class="cards">
+          <div class="card">
+            <h3>CSV importieren</h3>
+            <p class="muted">Spalten (flexibel): firma/company_name, name/ansprechpartner,
+              telefon/phone, email, plz, ort/city, segment, einwilligung/consent.</p>
+            <input type="file" id="csv-file" accept=".csv">
+            <button class="btn primary" id="btn-import">Importieren</button>
+            <div id="import-result" class="log" hidden></div>
+          </div>
+          <div class="card">
+            <h3>Manuellen Lead anlegen</h3>
+            <label>Firma <input id="ml-company"></label>
+            <label>Ansprechpartner <input id="ml-contact"></label>
+            <label>Telefon <input id="ml-phone"></label>
+            <label>E-Mail <input id="ml-email"></label>
+            <label>Ort <input id="ml-city"></label>
+            <label>Typ
+              <select id="ml-type"><option value="b2b">B2B (Firma)</option>
+                <option value="b2c">B2C (Privat)</option></select></label>
+            <label class="check"><input type="checkbox" id="ml-consent"> Einwilligung zur Kontaktaufnahme liegt vor</label>
+            <button class="btn primary" id="btn-manual">Lead speichern</button>
+          </div>
+          <div class="card">
+            <h3>Export</h3>
+            <p class="muted">Alle Leads als CSV herunterladen.</p>
+            <a class="btn" href="/api/export/csv">CSV exportieren</a>
+          </div>
+        </div>
+      </section>
+
+      <!-- SETTINGS VIEW -->
+      <section class="view" id="view-settings" hidden>
+        <h2>⚙️ Einstellungen</h2>
+        <div class="card settings-card">
+          <label>Dein Name (erscheint im Script)
+            <input id="set-rep" placeholder="Vorname Nachname"></label>
+          <label>Firma <input id="set-company" value="imondu"></label>
+          <label>Standard-Region <input id="set-region" placeholder="z.B. München"></label>
+          <label>Ton der Scripts
+            <input id="set-tone" placeholder="empathisch, vertrauenswürdig, nicht drängend"></label>
+          <hr>
+          <label>Anthropic API-Key (optional – für KI-Scripts)
+            <input id="set-apikey" type="password" placeholder="sk-ant-…"></label>
+          <label>KI-Modell
+            <input id="set-model" value="claude-opus-4-8"></label>
+          <p class="muted" id="apikey-status"></p>
+          <button class="btn primary" id="btn-save-settings">Speichern</button>
+          <span id="settings-saved" class="saved" hidden>✓ gespeichert</span>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Lead-Detail-Drawer -->
+  <div id="drawer-overlay" class="overlay" hidden></div>
+  <aside id="drawer" class="drawer" hidden></aside>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
