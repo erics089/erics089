@@ -40,7 +40,7 @@ export default async function DashboardPage() {
       prisma.post.count({ where: { status: { in: ["Entwurf", "Review"] } } }),
       prisma.campaign.count({ where: { status: "In Review" } }),
       getBrandConfig(),
-      prisma.adSpec.aggregate({ _sum: { budget: true } }),
+      prisma.adSpec.aggregate({ _sum: { budget: true }, where: { status: "Freigegeben" } }),
       prisma.post.findMany({ orderBy: { updatedAt: "desc" }, take: 5 }),
     ]);
 
