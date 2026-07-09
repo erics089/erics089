@@ -4,7 +4,7 @@ import { publishToInstagram, metaConfigured, MetaNotConfiguredError } from "@/li
 import { parsePostContent } from "@/lib/types";
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
-  if (!metaConfigured()) {
+  if (!(await metaConfigured())) {
     return NextResponse.json({ error: "MISSING_KEY", message: "Meta Graph API ist nicht konfiguriert." }, { status: 424 });
   }
   const body = await req.json().catch(() => ({}));

@@ -1,3 +1,5 @@
+import { getSecret } from "./secrets";
+
 export const INTEGRATIONS = [
   {
     key: "anthropic",
@@ -53,15 +55,24 @@ export const INTEGRATIONS = [
     envVars: ["WHATSAPP_BUSINESS_TOKEN"],
     docsHint: "business.facebook.com/wa/manage",
   },
+  {
+    key: "vercel-blob",
+    label: "Asset-Uploads auf Vercel (Blob Storage)",
+    envVars: ["BLOB_READ_WRITE_TOKEN"],
+    docsHint: "vercel.com/docs/storage/vercel-blob — nur nötig, wenn auf Vercel gehostet",
+  },
 ] as const;
 
-export function getIntegrationStatuses() {
-  return INTEGRATIONS.map((integration) => {
-    const connected = integration.envVars.every((v) => Boolean(process.env[v]));
-    const partially = !connected && integration.envVars.some((v) => Boolean(process.env[v]));
-    return {
-      ...integration,
-      status: connected ? "verbunden" : partially ? "unvollständig" : "fehlt",
-    } as const;
-  });
+export async function getIntegrationStatuses() {
+  return Promise.all(
+    INTEGRATIONS.map(async (integration) => {
+      const values = await Promise.all(integration.envVars.map((v) => getSecret(v)));
+      const connected = values.every(Boolean);
+      const partially = !connected && values.some(Boolean);
+      return {
+        ...integration,
+        status: connected ? "verbunden" : partially ? "unvollständig" : "fehlt",
+      } as const;
+    })
+  );
 }

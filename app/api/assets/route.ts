@@ -8,8 +8,8 @@ export async function GET(req: Request) {
 
   const assets = await prisma.asset.findMany({
     where: {
-      ...(q ? { filename: { contains: q } } : {}),
-      ...(tag ? { tags: { contains: tag } } : {}),
+      ...(q ? { filename: { contains: q, mode: "insensitive" } } : {}),
+      ...(tag ? { tags: { contains: tag, mode: "insensitive" } } : {}),
     },
     orderBy: { createdAt: "desc" },
     include: { usages: { include: { post: true }, orderBy: { usedAt: "desc" } } },

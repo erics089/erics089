@@ -1,3 +1,5 @@
+import { getSecret } from "./secrets";
+
 export class MetaNotConfiguredError extends Error {
   constructor() {
     super("Meta Graph API ist nicht konfiguriert.");
@@ -5,8 +7,12 @@ export class MetaNotConfiguredError extends Error {
   }
 }
 
-export function metaConfigured() {
-  return Boolean(process.env.META_ACCESS_TOKEN && process.env.META_IG_BUSINESS_ACCOUNT_ID);
+export async function metaConfigured() {
+  const [token, igUserId] = await Promise.all([
+    getSecret("META_ACCESS_TOKEN"),
+    getSecret("META_IG_BUSINESS_ACCOUNT_ID"),
+  ]);
+  return Boolean(token && igUserId);
 }
 
 /**
@@ -14,8 +20,10 @@ export function metaConfigured() {
  * Benötigt eine öffentlich erreichbare Bild-URL (z.B. gehostetes Asset).
  */
 export async function publishToInstagram(params: { imageUrl: string; caption: string }) {
-  const token = process.env.META_ACCESS_TOKEN;
-  const igUserId = process.env.META_IG_BUSINESS_ACCOUNT_ID;
+  const [token, igUserId] = await Promise.all([
+    getSecret("META_ACCESS_TOKEN"),
+    getSecret("META_IG_BUSINESS_ACCOUNT_ID"),
+  ]);
   if (!token || !igUserId) throw new MetaNotConfiguredError();
 
   const base = `https://graph.facebook.com/v20.0/${igUserId}`;

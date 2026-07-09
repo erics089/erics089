@@ -1,14 +1,26 @@
 // MIRRA Wellness Marketing Command Center — Datenmodell
-// SQLite eignet sich nicht für native Enums in Prisma, daher werden
-// Status-/Kategoriewerte als String geführt und in lib/constants.ts typisiert.
+// Postgres (empfohlen: Neon, siehe README) statt SQLite, damit die App auf
+// Vercel läuft — dort ist das Dateisystem serverless-Funktionen ephemeral,
+// eine SQLite-Datei würde also nicht zuverlässig persistieren.
+// Status-/Kategoriewerte bleiben bewusst als String statt Enum geführt (aus
+// der ursprünglichen SQLite-Ära) und sind in lib/constants.ts typisiert.
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+/// API-Keys, die direkt in den Einstellungen eingetragen werden (statt nur
+/// über .env.local). DB-Wert hat Vorrang vor der Umgebungsvariable gleichen
+/// Namens — siehe lib/secrets.ts.
+model Secret {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
 }
 
 /// Editierbare Markenkonfiguration (Singleton-Zeile, id = "brand")

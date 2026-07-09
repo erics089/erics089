@@ -1,6 +1,7 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import type { McpServer } from "@prisma/client";
+import { getSecret } from "./secrets";
 
 /**
  * Generische MCP-Verbindungsschicht. Neue Server werden ausschließlich über
@@ -10,7 +11,7 @@ import type { McpServer } from "@prisma/client";
 export async function connectMcp(server: Pick<McpServer, "url" | "apiKeyEnv" | "name">) {
   const headers: Record<string, string> = {};
   if (server.apiKeyEnv) {
-    const key = process.env[server.apiKeyEnv];
+    const key = await getSecret(server.apiKeyEnv);
     if (key) headers["Authorization"] = `Bearer ${key}`;
   }
 

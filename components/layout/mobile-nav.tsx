@@ -24,7 +24,10 @@ export function MobileNav() {
   React.useEffect(() => setOpen(false), [pathname]);
 
   return (
-    <div className="flex items-center justify-between border-b border-border bg-surface/70 px-4 py-3 lg:hidden">
+    <div
+      className="flex items-center justify-between border-b border-border bg-surface/70 px-4 py-3 lg:hidden"
+      style={{ paddingTop: "calc(0.75rem + env(safe-area-inset-top))" }}
+    >
       <Link href="/" className="flex items-center gap-2">
         <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gold/25 text-ink">
           <Droplets className="h-4 w-4" />

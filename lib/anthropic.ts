@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { TONALITY_RULES } from "./brand";
+import { getSecret } from "./secrets";
 
 export class MissingApiKeyError extends Error {
   constructor() {
@@ -8,17 +9,14 @@ export class MissingApiKeyError extends Error {
   }
 }
 
-let client: Anthropic | null = null;
-
-function getClient() {
-  const key = process.env.ANTHROPIC_API_KEY;
+async function getClient() {
+  const key = await getSecret("ANTHROPIC_API_KEY");
   if (!key) throw new MissingApiKeyError();
-  if (!client) client = new Anthropic({ apiKey: key });
-  return client;
+  return new Anthropic({ apiKey: key });
 }
 
-export function anthropicConfigured() {
-  return Boolean(process.env.ANTHROPIC_API_KEY);
+export async function anthropicConfigured() {
+  return Boolean(await getSecret("ANTHROPIC_API_KEY"));
 }
 
 const MODEL = process.env.ANTHROPIC_MODEL || "claude-sonnet-5";
@@ -40,7 +38,7 @@ export async function generateWithSelfCritique<T = unknown>(params: {
   userPrompt: string;
   maxTokens?: number;
 }): Promise<{ result: T; raw: string }> {
-  const anthropic = getClient();
+  const anthropic = await getClient();
   const maxTokens = params.maxTokens ?? 4096;
 
   const draftMsg = await anthropic.messages.create({
@@ -94,7 +92,7 @@ export async function generateText(params: {
   userPrompt: string;
   maxTokens?: number;
 }): Promise<string> {
-  const anthropic = getClient();
+  const anthropic = await getClient();
   const msg = await anthropic.messages.create({
     model: MODEL,
     max_tokens: params.maxTokens ?? 2048,

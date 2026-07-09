@@ -21,14 +21,12 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# local env (secrets) — .env itself is committed with only the non-secret
-# DATABASE_URL default so `prisma` CLI + first run work out of the box
+# local env (secrets, incl. Postgres DATABASE_URL) — .env itself is
+# committed but intentionally holds no secrets, see .env.example
 .env.local
 .env*.local
 
-# database
-prisma/dev.db
-prisma/dev.db-journal
+# stray local SQLite files (legacy / accidental local testing)
 *.db
 *.db-journal
 

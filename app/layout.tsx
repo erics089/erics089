@@ -1,17 +1,30 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { getBrandConfig } from "@/lib/settings";
 import { Sidebar } from "@/components/layout/sidebar";
 import { MobileNav } from "@/components/layout/mobile-nav";
+import { PwaRegister } from "@/components/pwa-register";
 
 export const metadata: Metadata = {
   title: "MIRRA Wellness — Marketing Command Center",
   description: "Marketing-Steuerzentrale für MIRRA WELLNESS Planegg",
+  manifest: "/manifest.json",
+  icons: {
+    icon: "/icons/icon-192.png",
+    apple: "/icons/icon-180.png",
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "MIRRA",
+  },
 };
 
-export const viewport = {
+export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#F5EFE6",
 };
 
 function googleFontsHref(heading: string, body: string) {
@@ -49,11 +62,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         />
       </head>
       <body className="font-body antialiased">
+        <PwaRegister />
         <div className="flex min-h-screen">
           <Sidebar />
           <div className="flex min-h-screen flex-1 flex-col">
             <MobileNav />
-            <main className="flex-1 px-4 py-6 sm:px-6 lg:px-10 lg:py-8">{children}</main>
+            <main className="flex-1 px-4 py-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:px-6 lg:px-10 lg:py-8">
+              {children}
+            </main>
           </div>
         </div>
       </body>
