@@ -6,6 +6,11 @@ import { ProgressRing, MilestoneTrack } from "@/components/ui/Progress";
 import { Icon } from "@/components/ui/Icon";
 import { categoryGlyph, formatDate } from "@/lib/utils";
 
+export async function generateStaticParams() {
+  const goals = await repository.getGoals();
+  return goals.map((g) => ({ id: g.id }));
+}
+
 export default async function GoalDetailPage({ params }: { params: { id: string } }) {
   const goal = await repository.getGoal(params.id);
   if (!goal) notFound();

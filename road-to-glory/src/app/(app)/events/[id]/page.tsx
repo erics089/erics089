@@ -6,6 +6,11 @@ import { Icon } from "@/components/ui/Icon";
 import { RsvpButton } from "@/components/shared/RsvpButton";
 import { eventGradient, formatDateTime } from "@/lib/utils";
 
+export async function generateStaticParams() {
+  const events = await repository.getEvents();
+  return events.map((e) => ({ id: e.id }));
+}
+
 export default async function EventDetailPage({ params }: { params: { id: string } }) {
   const [event, members, self] = await Promise.all([
     repository.getEvent(params.id),
