@@ -5,8 +5,10 @@ jeder relevanten Änderung fortgeschrieben.
 
 ## 0. Status
 
-**Phase 0 (Fundament)** ist abgeschlossen: Next.js-App-Shell, Multi-Tenant-DB-Schema,
-Auth mit RBAC, Docker-Compose-Setup, i18n-Grundlage, Seed-Daten.
+**Phase 0 (Fundament)** und **Phase 1 (CRM + Projekte)** sind abgeschlossen:
+Next.js-App-Shell, Multi-Tenant-DB-Schema, Auth mit RBAC, Docker-Compose-Setup,
+i18n-Grundlage, Seed-Daten, Kundenverwaltung mit Lead-Pipeline sowie
+Projekt-/Aufgaben-Management mit Zeiterfassung.
 
 ## 1. Offene Produktentscheidungen — angenommene Defaults
 
@@ -107,15 +109,19 @@ src/
   app/
     login/                 # Login-Seite + Formular
     dashboard/              # Geschützter Bereich (Proxy erzwingt Auth)
-      crm/ projekte/ websites/ rechnungen/ marketing/ ki-mcp/ backup/ sicherheit/
+      crm/                  # Kundenliste, Kundenakte ([id]), Pipeline-Kanban, actions.ts
+      projekte/              # Projektliste, Anlegen (neu), Projekt-Detail+Kanban ([id]), actions.ts
+      websites/ rechnungen/ marketing/ ki-mcp/ backup/ sicherheit/
     api/auth/[...nextauth]/  # Auth.js Route-Handler
   components/
-    ui/                     # shadcn-kompatible Primitive
+    ui/                     # shadcn-kompatible Primitive (inkl. textarea.tsx)
     app-sidebar.tsx, user-menu.tsx, module-placeholder.tsx, providers.tsx
+    stage-select.tsx         # Client-Component: Select mit Auto-Submit einer Server Action
   i18n/
     messages/{de,en}.json, request.ts
   lib/
     auth.ts, auth.config.ts, db.ts, totp.ts, modules.ts, utils.ts
+    agency-context.ts        # getAgencyContext() — Session -> {userId, agencyId, role}
   proxy.ts                  # Next.js 16 Middleware-Nachfolger (Auth-Guard für /dashboard)
 prisma/
   schema.prisma, seed.ts, migrations/

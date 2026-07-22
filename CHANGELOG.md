@@ -3,6 +3,56 @@
 Alle nennenswerten Änderungen an AGENTUR-OS werden hier fortlaufend dokumentiert.
 Format lose angelehnt an [Keep a Changelog](https://keepachangelog.com/).
 
+## [Phase 1] — CRM + Projekte — 2026-07-22
+
+### Hinzugefügt
+
+- **Datenbank:** Migration `phase1_projects_crm` — neue Modelle `CustomerContact`,
+  `CustomerNote`, `ProjectStatusDefinition` (agenturweit konfigurierbarer
+  Status-Workflow), `Project`, `Task`, `TimeEntry`. Das bisherige freie
+  `Customer.notes`-Textfeld wurde durch die chronologische `CustomerNote`-Relation
+  ersetzt.
+- **CRM:** Echte Kundenliste, Kundenakte mit Stammdaten, mehreren Ansprechpartnern
+  und einer Notiz-Timeline (Autor + Zeitstempel), Lead-Pipeline als Kanban-Board
+  (`/dashboard/crm/pipeline`) mit Sofort-Wechsel des Pipeline-Status.
+- **Projekte:** Projekte pro Kunde anlegen (Typ Website/App/Kampagne/Sonstiges),
+  agenturspezifischer Status-Workflow (Seed: Briefing → Konzept → Umsetzung →
+  Review → Live → Wartung), Aufgaben-Kanban (Offen/In Arbeit/Review/Erledigt) mit
+  Zuweisung, Priorität, Fälligkeitsdatum, einfache Zeiterfassung pro Aufgabe und
+  Budget-Auslastungsanzeige (Stunden-Budget vs. erfasste Zeit).
+- **Server Actions:** `src/app/dashboard/crm/actions.ts` und
+  `.../projekte/actions.ts` — alle Mutationen prüfen `agencyId`-Zugehörigkeit
+  gegen die Session, bevor geschrieben wird (manuelles Tenant-Scoping, siehe
+  bekannte Einschränkung aus Phase 0).
+- **UI-Baustein:** `StageSelect`-Client-Component (generisches Select mit
+  Auto-Submit einer gebundenen Server Action) — wiederverwendet für
+  Pipeline-Stage- und Task-Status-Wechsel.
+- **Seed-Daten erweitert:** Demo-Projekt „Neue Website Bäckerei Sonnenblick" mit
+  3 Aufgaben, 1 Zeiteintrag, Ansprechpartner und Notiz.
+
+### Verifiziert
+
+- `npx tsc --noEmit`, `npm run lint`, `npm run build` — alle grün.
+- Echter Browser-Test (Playwright, temporär installiert und nach dem Test wieder
+  entfernt — kein dauerhafter Abhängigkeits-Zusatz): Login, Notiz anlegen,
+  Ansprechpartner anlegen, Pipeline-Stage per Auto-Submit-Select wechseln,
+  Aufgabe anlegen, Zeit erfassen — alle Server Actions funktionieren end-to-end
+  gegen eine lokale PostgreSQL-Instanz.
+
+### Bekannte Einschränkungen / nächste Schritte
+
+- Task-Status ist ein festes Enum (`TaskStatus`), im Gegensatz zum konfigurierbaren
+  Projekt-Status-Workflow — bewusste Vereinfachung, da die Vorgabe nur für
+  Projekt-Status explizit Konfigurierbarkeit fordert.
+- Dokumente/Verträge in der Kundenakte (aus Abschnitt 4.1 des Master-Prompts) sind
+  noch nicht umgesetzt — kein Datenmodell ohne zugehörigen Upload-Flow angelegt,
+  um keine Halb-Implementierung zu hinterlassen. Folgt mit File-Storage-Anbindung.
+- Retainer-/Budget-Warnung ist nur eine einfache Prozent-Anzeige (Badge wird bei
+  >90% rot) — keine proaktive Benachrichtigung bei Scope Creep.
+- RBAC/`ModulePermission` wird in der UI noch nicht durchgesetzt (nur
+  Datenmodell + Zugehörigkeits-Check auf `agencyId`); jede Agentur-Mitgliedschaft
+  kann aktuell alle Phase-1-Aktionen ausführen.
+
 ## [Phase 0] — Fundament — 2026-07-08
 
 ### Hinzugefügt

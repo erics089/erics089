@@ -1,6 +1,13 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 import bcrypt from "bcryptjs";
-import { AgencyModule, AgencyRole, PrismaClient } from "../src/generated/prisma/client";
+import {
+  AgencyModule,
+  AgencyRole,
+  PrismaClient,
+  ProjectType,
+  TaskPriority,
+  TaskStatus,
+} from "../src/generated/prisma/client";
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
 const db = new PrismaClient({ adapter });
@@ -165,6 +172,113 @@ async function main() {
     },
   });
 
+  // --- Ansprechpartner & Notizen ---
+  await db.customerContact.upsert({
+    where: { id: "demo-contact-baeckerei-anna" },
+    update: {},
+    create: {
+      id: "demo-contact-baeckerei-anna",
+      customerId: bakery.id,
+      name: "Anna Sonnenblick",
+      role: "Inhaberin",
+      email: "info@sonnenblick-baeckerei.de",
+      isPrimary: true,
+    },
+  });
+
+  await db.customerNote.upsert({
+    where: { id: "demo-note-baeckerei-kickoff" },
+    update: {},
+    create: {
+      id: "demo-note-baeckerei-kickoff",
+      customerId: bakery.id,
+      authorId: pm.id,
+      body: "Kickoff-Call durchgeführt. Wünscht Online-Bestellformular für Torten.",
+    },
+  });
+
+  // --- Projekt-Status-Workflow (agenturweit konfigurierbar) ---
+  const DEFAULT_STATUSES = ["Briefing", "Konzept", "Umsetzung", "Review", "Live", "Wartung"];
+  const statusRecords: Record<string, { id: string }> = {};
+  for (const [index, name] of DEFAULT_STATUSES.entries()) {
+    statusRecords[name] = await db.projectStatusDefinition.upsert({
+      where: { agencyId_name: { agencyId: agency.id, name } },
+      update: {},
+      create: { agencyId: agency.id, name, order: index, isDefault: index === 0 },
+    });
+  }
+
+  // --- Demo-Projekt mit Aufgaben ---
+  const website = await db.project.upsert({
+    where: { id: "demo-project-baeckerei-website" },
+    update: {},
+    create: {
+      id: "demo-project-baeckerei-website",
+      agencyId: agency.id,
+      customerId: bakery.id,
+      name: "Neue Website Bäckerei Sonnenblick",
+      type: ProjectType.WEBSITE,
+      statusId: statusRecords["Umsetzung"].id,
+      budgetHours: 40,
+      startDate: new Date("2026-06-01"),
+      dueDate: new Date("2026-08-15"),
+    },
+  });
+
+  const taskDesign = await db.task.upsert({
+    where: { id: "demo-task-design" },
+    update: {},
+    create: {
+      id: "demo-task-design",
+      projectId: website.id,
+      title: "Startseiten-Design finalisieren",
+      status: TaskStatus.IN_PROGRESS,
+      priority: TaskPriority.HIGH,
+      assigneeId: staff.id,
+      dueDate: new Date("2026-07-25"),
+    },
+  });
+
+  await db.task.upsert({
+    where: { id: "demo-task-content" },
+    update: {},
+    create: {
+      id: "demo-task-content",
+      projectId: website.id,
+      title: "Texte für Produktseiten abstimmen",
+      status: TaskStatus.TODO,
+      priority: TaskPriority.MEDIUM,
+      assigneeId: pm.id,
+      dueDate: new Date("2026-08-01"),
+    },
+  });
+
+  await db.task.upsert({
+    where: { id: "demo-task-briefing" },
+    update: {},
+    create: {
+      id: "demo-task-briefing",
+      projectId: website.id,
+      title: "Briefing-Dokument mit Kunde abgestimmt",
+      status: TaskStatus.DONE,
+      priority: TaskPriority.MEDIUM,
+      assigneeId: pm.id,
+    },
+  });
+
+  await db.timeEntry.upsert({
+    where: { id: "demo-timeentry-design-1" },
+    update: {},
+    create: {
+      id: "demo-timeentry-design-1",
+      taskId: taskDesign.id,
+      userId: staff.id,
+      minutes: 180,
+      billable: true,
+      note: "Erste Entwürfe für Startseite",
+    },
+  });
+
   await db.auditLog.create({
     data: {
       agencyId: agency.id,
@@ -172,7 +286,7 @@ async function main() {
       action: "seed.demo_data_created",
       entityType: "Agency",
       entityId: agency.id,
-      changes: { note: "Initiale Demo-Daten für Phase 0" },
+      changes: { note: "Initiale Demo-Daten für Phase 0/1" },
     },
   });
 
