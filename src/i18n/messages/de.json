@@ -1,0 +1,30 @@
+{
+  "modules": {
+    "CRM": { "label": "Kundenverwaltung", "description": "Kundenakten, Ansprechpartner, Lead-Pipeline." },
+    "PROJECTS": { "label": "Projekte", "description": "Aufgaben, Zeiterfassung, Kanban & Timeline." },
+    "WEBSITES": { "label": "Websites", "description": "Wizard, Live-Vorschau, KI-Generierung, Onepage-MCP." },
+    "BILLING": { "label": "Rechnungen", "description": "Angebote, Rechnungen, XRechnung/ZUGFeRD, Retainer." },
+    "MARKETING": { "label": "Marketing", "description": "Kampagnen, Ad-Previews, KI-Creatives." },
+    "AI_MCP": { "label": "KI & MCP", "description": "Provider-Keys, MCP-Server, Bild-/Videogenerierung." },
+    "BACKUP": { "label": "Backup & Rollback", "description": "Snapshots, Restore, Update-Mechanismus." },
+    "SECURITY": { "label": "Sicherheit", "description": "2FA, Rollen, Audit-Log, DSGVO." }
+  },
+  "auth": {
+    "title": "AGENTUR-OS",
+    "subtitle": "Melde dich mit deinem Agentur-Konto an.",
+    "email": "E-Mail",
+    "password": "Passwort",
+    "otpLabel": "2FA-Code",
+    "otpHint": "Bitte gib deinen 6-stelligen 2FA-Code ein.",
+    "otpInvalid": "Der 2FA-Code ist ungültig.",
+    "invalidCredentials": "E-Mail oder Passwort ist falsch.",
+    "submit": "Anmelden",
+    "submitPending": "Anmelden…",
+    "submitOtp": "Code bestätigen",
+    "signOut": "Abmelden"
+  },
+  "dashboard": {
+    "welcome": "Willkommen zurück, {name}",
+    "customerCount": "{count, plural, =0 {Keine Kunden} one {# Kunde} other {# Kunden}} in deiner Agentur hinterlegt."
+  }
+}

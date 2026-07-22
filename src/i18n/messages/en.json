@@ -1,0 +1,30 @@
+{
+  "modules": {
+    "CRM": { "label": "Customer Management", "description": "Client records, contacts, lead pipeline." },
+    "PROJECTS": { "label": "Projects", "description": "Tasks, time tracking, Kanban & timeline." },
+    "WEBSITES": { "label": "Websites", "description": "Wizard, live preview, AI generation, Onepage MCP." },
+    "BILLING": { "label": "Invoicing", "description": "Quotes, invoices, XRechnung/ZUGFeRD, retainers." },
+    "MARKETING": { "label": "Marketing", "description": "Campaigns, ad previews, AI creatives." },
+    "AI_MCP": { "label": "AI & MCP", "description": "Provider keys, MCP servers, image/video generation." },
+    "BACKUP": { "label": "Backup & Rollback", "description": "Snapshots, restore, update mechanism." },
+    "SECURITY": { "label": "Security", "description": "2FA, roles, audit log, GDPR." }
+  },
+  "auth": {
+    "title": "AGENTUR-OS",
+    "subtitle": "Sign in with your agency account.",
+    "email": "Email",
+    "password": "Password",
+    "otpLabel": "2FA code",
+    "otpHint": "Please enter your 6-digit 2FA code.",
+    "otpInvalid": "The 2FA code is invalid.",
+    "invalidCredentials": "Email or password is incorrect.",
+    "submit": "Sign in",
+    "submitPending": "Signing in…",
+    "submitOtp": "Confirm code",
+    "signOut": "Sign out"
+  },
+  "dashboard": {
+    "welcome": "Welcome back, {name}",
+    "customerCount": "{count, plural, =0 {No customers} one {# customer} other {# customers}} on file for your agency."
+  }
+}
